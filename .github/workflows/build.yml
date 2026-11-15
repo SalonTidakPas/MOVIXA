@@ -23,18 +23,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - - name: Fix JVM Target
-  run: |
-    sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' project/app/build.gradle.kts
+      - name: Fix JVM Target
+        run: |
+          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' project/app/build.gradle.kts
 
- - name: Build APK
-  working-directory: project
-  run: gradle assembleDebug
+      - name: Build APK
+        working-directory: project
+        run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
