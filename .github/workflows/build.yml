@@ -29,9 +29,28 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Fix JVM Target
+      -       - name: Fix JVM Target
         run: |
-          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' project/app/build.gradle.kts
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("project/app/build.gradle.kts")
+          s = p.read_text()
+
+          if "compileOptions" not in s:
+              s = s.replace(
+                  "android {",
+                  """android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }""",
+                  1
+              )
+
+          p.write_text(s)
+          print(s)
+          PY
 
       - name: Build APK
         working-directory: project
