@@ -20,6 +20,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -627,9 +630,9 @@ fun MovieCard(movie: Movie, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Panel, RoundedCornerShape(16.dp))
+            .background(Panel, RoundedCornerShape(20.dp))
             .clickable { onClick() }
-            .padding(16.dp),
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         PosterImage(
@@ -656,7 +659,7 @@ fun MovieCard(movie: Movie, onClick: () -> Unit) {
                 movie.description,
                 color = Color.LightGray,
                 fontSize = 12.sp,
-                maxLines = 2
+                maxLines = 3
             )
         }
     }
