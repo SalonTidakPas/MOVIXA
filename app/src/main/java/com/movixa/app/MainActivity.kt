@@ -1,3 +1,4 @@
+
 package com.movixa.app
 
 import android.os.Bundle
@@ -65,6 +66,67 @@ private val demoMovies = listOf(
         "A story about friendship, family, and a summer to remember.", DEMO_URL)
 )
 
+private fun fetchRepositoryMovies(repository: String): List<Movie> {
+    val connection =
+        URL(repository).openConnection() as HttpURLConnection
+
+    try {
+        connection.requestMethod = "GET"
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.useCaches = false
+
+        val response = connection.responseCode
+
+        if (response !in 200..299) {
+            throw Exception("HTTP $response")
+        }
+
+        val body = connection.inputStream
+            .bufferedReader()
+            .use { it.readText() }
+
+        val json = JSONObject(body)
+        val extensions = json.optJSONArray("extensions")
+            ?: return emptyList()
+
+        val movies = mutableListOf<Movie>()
+
+        for (i in 0 until extensions.length()) {
+            val extension = extensions.optJSONObject(i)
+                ?: continue
+
+            val movieArray = extension.optJSONArray("movies")
+                ?: continue
+
+            for (j in 0 until movieArray.length()) {
+                val item = movieArray.optJSONObject(j)
+                    ?: continue
+
+                val title = item.optString("title")
+                val videoUrl = item.optString("videoUrl")
+
+                if (title.isNotBlank() && videoUrl.isNotBlank()) {
+                    movies.add(
+                        Movie(
+                            title = title,
+                            genre = item.optString("genre", "Other"),
+                            year = item.optString("year", ""),
+                            description = item.optString("description", ""),
+                            videoUrl = videoUrl
+                        )
+                    )
+                }
+            }
+        }
+
+        return movies
+
+    } finally {
+        connection.disconnect()
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,17 +157,52 @@ fun MovixaApp() {
     var category by remember { mutableStateOf("All") }
     var showExtensions by remember { mutableStateOf(false) }
 
-    val categories = listOf("All", "Adventure", "Thriller", "Sci-Fi", "Drama")
+    var extensionMovies by remember {
+        mutableStateOf<List<Movie>>(emptyList())
+    }
 
-    val visible = demoMovies.filter {
-        (category == "All" || it.genre == category) &&
-            it.title.contains(query, ignoreCase = true)
+    var catalogStatus by remember {
+        mutableStateOf("Belum memuat katalog extension")
     }
 
     fun saveRepositories() {
         preferences.edit()
             .putStringSet("repositories", repositories.toSet())
             .apply()
+    }
+
+    LaunchedEffect(repositories.toList()) {
+        if (repositories.isEmpty()) {
+            extensionMovies = emptyList()
+            catalogStatus = "Tambahkan repository untuk memuat katalog"
+        } else {
+            catalogStatus = "Memuat katalog extension..."
+
+            val loaded = withContext(Dispatchers.IO) {
+                repositories.flatMap { repository ->
+                    runCatching {
+                        fetchRepositoryMovies(repository)
+                    }.getOrDefault(emptyList())
+                }
+            }
+
+            extensionMovies = loaded
+            catalogStatus =
+                "${loaded.size} film ditemukan dari ${repositories.size} repository"
+        }
+    }
+
+    val allMovies = (demoMovies + extensionMovies)
+        .distinctBy { it.title }
+
+    val categories = (
+        listOf("All", "Adventure", "Thriller", "Sci-Fi", "Drama", "Demo") +
+            extensionMovies.map { it.genre }
+        ).distinct()
+
+    val visible = allMovies.filter {
+        (category == "All" || it.genre == category) &&
+            it.title.contains(query, ignoreCase = true)
     }
 
     MaterialTheme(
@@ -188,7 +285,7 @@ fun MovixaApp() {
                                 Text("🧩  EXTENSIONS & REPOSITORIES")
                             }
 
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(12.dp))
 
                             Text(
                                 "Discover",
@@ -199,6 +296,12 @@ fun MovixaApp() {
                             Text(
                                 "Find your next movie night.",
                                 color = Color.LightGray
+                            )
+
+                            Text(
+                                catalogStatus,
+                                color = Aqua,
+                                fontSize = 12.sp
                             )
                         }
 
@@ -234,7 +337,7 @@ fun MovixaApp() {
 
                         item {
                             Text(
-                                "Demo catalog • Demo video source",
+                                "MOVIXA • Extension catalog",
                                 color = Color.Gray,
                                 fontSize = 11.sp
                             )
@@ -367,6 +470,7 @@ fun RepositoryCard(
                     connection.requestMethod = "GET"
                     connection.connectTimeout = 10000
                     connection.readTimeout = 10000
+                    connection.useCaches = false
 
                     val response = connection.responseCode
 
