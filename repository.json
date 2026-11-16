@@ -6,8 +6,17 @@
     {
       "id": "movixa-demo",
       "name": "MOVIXA Demo Extension",
-      "version": "1.0.0",
-      "description": "Demo extension for MOVIXA"
+      "version": "1.1.0",
+      "description": "Demo catalog provider for MOVIXA",
+      "movies": [
+        {
+          "title": "MOVIXA Player Test",
+          "genre": "Demo",
+          "year": "2026",
+          "description": "Video untuk menguji sistem katalog extension MOVIXA.",
+          "videoUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+        }
+      ]
     }
   ]
 }
