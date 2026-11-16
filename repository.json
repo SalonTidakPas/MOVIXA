@@ -1,0 +1,13 @@
+
+{
+  "name": "MOVIXA Official Repository",
+  "version": 1,
+  "extensions": [
+    {
+      "id": "movixa-demo",
+      "name": "MOVIXA Demo Extension",
+      "version": "1.0.0",
+      "description": "Demo extension for MOVIXA"
+    }
+  ]
+}
