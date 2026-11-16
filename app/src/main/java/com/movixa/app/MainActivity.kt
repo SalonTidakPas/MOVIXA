@@ -91,7 +91,7 @@ fun VideoPlayerScreen(onBack: () -> Unit) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(
                 MediaItem.fromUri(
-                    "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+                    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
                 )
             )
             prepare()
