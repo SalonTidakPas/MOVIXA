@@ -1,4 +1,3 @@
-
 package com.movixa.app
 
 import android.os.Bundle
@@ -27,6 +26,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 private val Night = Color(0xFF090D18)
 private val Panel = Color(0xFF151D2D)
@@ -41,6 +45,13 @@ data class Movie(
     val year: String,
     val description: String,
     val videoUrl: String
+)
+
+data class ExtensionInfo(
+    val id: String,
+    val name: String,
+    val version: String,
+    val description: String
 )
 
 private val demoMovies = listOf(
@@ -88,7 +99,7 @@ fun MovixaApp() {
 
     val visible = demoMovies.filter {
         (category == "All" || it.genre == category) &&
-        it.title.contains(query, ignoreCase = true)
+            it.title.contains(query, ignoreCase = true)
     }
 
     fun saveRepositories() {
@@ -133,7 +144,7 @@ fun MovixaApp() {
                         onAdd = { url ->
                             if (
                                 (url.startsWith("https://") ||
-                                 url.startsWith("http://")) &&
+                                    url.startsWith("http://")) &&
                                 !repositories.contains(url)
                             ) {
                                 repositories.add(url)
@@ -272,10 +283,7 @@ fun ExtensionsScreen(
 
         HorizontalDivider(color = Color.DarkGray)
 
-        Text(
-            "ADD REPOSITORY",
-            fontWeight = FontWeight.Bold
-        )
+        Text("ADD REPOSITORY", fontWeight = FontWeight.Bold)
 
         OutlinedTextField(
             value = url,
@@ -290,29 +298,28 @@ fun ExtensionsScreen(
         )
 
         if (error.isNotEmpty()) {
-            Text(error, color = Color.Red, fontSize = 12.sp)
+            Text(error, color = Color.Red)
         }
 
         Button(
             onClick = {
-                val cleanUrl = url.trim()
+                val clean = url.trim()
 
                 if (
-                    !cleanUrl.startsWith("https://") &&
-                    !cleanUrl.startsWith("http://")
+                    (clean.startsWith("https://") ||
+                        clean.startsWith("http://")) &&
+                    !repositories.contains(clean)
                 ) {
-                    error = "Masukkan URL yang diawali http:// atau https://"
-                } else if (repositories.contains(cleanUrl)) {
-                    error = "Repository sudah ditambahkan."
-                } else {
-                    onAdd(cleanUrl)
+                    onAdd(clean)
                     url = ""
                     error = ""
+                } else {
+                    error = "URL tidak valid atau sudah ditambahkan."
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("+  ADD REPOSITORY")
+            Text("+ ADD REPOSITORY")
         }
 
         HorizontalDivider(color = Color.DarkGray)
@@ -323,39 +330,146 @@ fun ExtensionsScreen(
         )
 
         if (repositories.isEmpty()) {
-            Text(
-                "Belum ada repository.",
-                color = Color.Gray
-            )
+            Text("Belum ada repository.", color = Color.Gray)
         }
 
         repositories.forEach { repository ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Panel, RoundedCornerShape(12.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            RepositoryCard(
+                repository = repository,
+                onRemove = { onRemove(repository) }
+            )
+        }
+    }
+}
+
+@Composable
+fun RepositoryCard(
+    repository: String,
+    onRemove: () -> Unit
+) {
+    var loading by remember(repository) { mutableStateOf(true) }
+    var repoName by remember(repository) { mutableStateOf("") }
+    var extensions by remember(repository) {
+        mutableStateOf<List<ExtensionInfo>>(emptyList())
+    }
+    var error by remember(repository) { mutableStateOf("") }
+
+    LaunchedEffect(repository) {
+        loading = true
+        error = ""
+
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val connection =
+                    URL(repository).openConnection() as HttpURLConnection
+
+                try {
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 10000
+                    connection.readTimeout = 10000
+
+                    val response = connection.responseCode
+
+                    if (response !in 200..299) {
+                        throw Exception("HTTP $response")
+                    }
+
+                    val body = connection.inputStream
+                        .bufferedReader()
+                        .use { it.readText() }
+
+                    val json = JSONObject(body)
+                    val array = json.getJSONArray("extensions")
+
+                    val list = mutableListOf<ExtensionInfo>()
+
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+
+                        list.add(
+                            ExtensionInfo(
+                                id = item.optString("id"),
+                                name = item.optString("name"),
+                                version = item.optString("version"),
+                                description = item.optString("description")
+                            )
+                        )
+                    }
+
+                    Pair(
+                        json.optString("name", "Unnamed Repository"),
+                        list
+                    )
+                } finally {
+                    connection.disconnect()
+                }
+            }
+
+            repoName = result.first
+            extensions = result.second
+
+        } catch (e: Exception) {
+            error = e.message ?: "Gagal membaca repository"
+        }
+
+        loading = false
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            repoName.ifEmpty { repository },
+            color = Aqua,
+            fontWeight = FontWeight.Bold
+        )
+
+        when {
+            loading -> {
+                Text("Mengambil data repository...", color = Color.Gray)
+            }
+
+            error.isNotEmpty() -> {
+                Text("Gagal: $error", color = Color(0xFFFF7777))
+            }
+
+            else -> {
                 Text(
-                    repository,
-                    color = Color.White,
-                    fontSize = 13.sp
+                    "${extensions.size} extension ditemukan",
+                    color = Color(0xFF75D99A)
                 )
 
-                TextButton(
-                    onClick = { onRemove(repository) }
-                ) {
-                    Text("HAPUS", color = Color(0xFFFF7777))
+                extensions.forEach { extension ->
+                    HorizontalDivider(color = Color.DarkGray)
+
+                    Text(
+                        extension.name,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        "ID: ${extension.id} • Versi: ${extension.version}",
+                        color = Aqua,
+                        fontSize = 12.sp
+                    )
+
+                    Text(
+                        extension.description,
+                        color = Color.LightGray,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
 
-        Text(
-            "Repository manager • Plugin loading coming later",
-            color = Color.Gray,
-            fontSize = 11.sp
-        )
+        TextButton(onClick = onRemove) {
+            Text("HAPUS REPOSITORY", color = Color(0xFFFF7777))
+        }
     }
 }
 
