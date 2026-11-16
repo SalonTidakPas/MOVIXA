@@ -1,4 +1,3 @@
-
 package com.movixa.app
 
 import android.os.Bundle
@@ -7,93 +6,271 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
 private val Night = Color(0xFF090D18)
+private val Panel = Color(0xFF151D2D)
 private val Aqua = Color(0xFF42C8E8)
+
+private const val DEMO_URL =
+    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+
+data class Movie(
+    val title: String,
+    val genre: String,
+    val year: String,
+    val description: String,
+    val videoUrl: String
+)
+
+private val demoMovies = listOf(
+    Movie("Beyond the Blue", "Adventure", "2025",
+        "A fictional journey beyond the edge of the known ocean.", DEMO_URL),
+    Movie("Midnight Signal", "Thriller", "2024",
+        "A mysterious signal changes one quiet night.", DEMO_URL),
+    Movie("Orbit Seven", "Sci-Fi", "2025",
+        "Seven explorers search for a new home among the stars.", DEMO_URL),
+    Movie("The Last Summer", "Drama", "2023",
+        "A story about friendship, family, and a summer to remember.", DEMO_URL)
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MovixaPlayerApp()
-        }
+        setContent { MovixaApp() }
     }
 }
 
 @Composable
-fun MovixaPlayerApp() {
-    var playing by remember { mutableStateOf(false) }
+fun MovixaApp() {
+    var selected by remember { mutableStateOf<Movie?>(null) }
+    var playingMovie by remember { mutableStateOf<Movie?>(null) }
+    var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("All") }
+
+    val categories = listOf("All", "Adventure", "Thriller", "Sci-Fi", "Drama")
+
+    val visible = demoMovies.filter {
+        (category == "All" || it.genre == category) &&
+        it.title.contains(query, ignoreCase = true)
+    }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
             background = Night,
-            surface = Color(0xFF151D2D),
-            primary = Aqua
+            surface = Panel,
+            primary = Aqua,
+            onBackground = Color.White,
+            onSurface = Color.White
         )
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = Night
         ) {
-            if (!playing) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        "MOVIXA",
-                        color = Aqua,
-                        fontSize = 36.sp
+            when {
+                playingMovie != null -> {
+                    VideoPlayerScreen(
+                        movie = playingMovie!!,
+                        onBack = { playingMovie = null }
                     )
+                }
 
-                    Text(
-                        "YOUR CINEMA. YOUR WORLD.",
-                        color = Color.LightGray
+                selected != null -> {
+                    MovieDetailScreen(
+                        movie = selected!!,
+                        onBack = { selected = null },
+                        onPlay = { playingMovie = selected }
                     )
+                }
 
-                    Spacer(Modifier.height(32.dp))
-
-                    Button(
-                        onClick = { playing = true }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        contentPadding = PaddingValues(vertical = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("▶  PUTAR VIDEO")
+                        item {
+                            Text(
+                                "MOVIXA",
+                                color = Aqua,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                "YOUR CINEMA. YOUR WORLD.",
+                                color = Color.LightGray,
+                                fontSize = 11.sp
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            Text(
+                                "Discover",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Find your next movie night.",
+                                color = Color.LightGray
+                            )
+                        }
+
+                        item {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Search titles...") },
+                                singleLine = true
+                            )
+                        }
+
+                        item {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(categories) { item ->
+                                    FilterChip(
+                                        selected = category == item,
+                                        onClick = { category = item },
+                                        label = { Text(item) }
+                                    )
+                                }
+                            }
+                        }
+
+                        items(visible, key = { it.title }) { movie ->
+                            MovieCard(movie) {
+                                selected = movie
+                            }
+                        }
+
+                        item {
+                            Text(
+                                "Demo catalog • Demo video source",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
-            } else {
-                VideoPlayerScreen(
-                    onBack = { playing = false }
-                )
             }
         }
     }
 }
 
 @Composable
-fun VideoPlayerScreen(onBack: () -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+fun MovieCard(movie: Movie, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 76.dp, height = 100.dp)
+                .background(Color(0xFF24344D), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("▶", color = Aqua, fontSize = 26.sp)
+        }
 
-    val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(
-                MediaItem.fromUri(
-                    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
-                )
+        Spacer(Modifier.width(14.dp))
+
+        Column {
+            Text(
+                movie.title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
             )
+            Text(
+                "${movie.genre} • ${movie.year}",
+                color = Aqua,
+                fontSize = 12.sp
+            )
+            Text(
+                movie.description,
+                color = Color.LightGray,
+                fontSize = 12.sp,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+fun MovieDetailScreen(
+    movie: Movie,
+    onBack: () -> Unit,
+    onPlay: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            "← Back",
+            color = Aqua,
+            modifier = Modifier.clickable { onBack() }
+        )
+
+        Text(
+            movie.title,
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            "${movie.genre} • ${movie.year}",
+            color = Aqua
+        )
+
+        Text(movie.description, color = Color.LightGray)
+
+        Button(
+            onClick = onPlay,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("▶  PUTAR VIDEO")
+        }
+
+        Text(
+            "Demo playback. Sumber film asli akan ditambahkan nanti.",
+            color = Color.Gray,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+fun VideoPlayerScreen(
+    movie: Movie,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+
+    val player = remember(movie.videoUrl) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(movie.videoUrl))
             prepare()
             playWhenReady = true
         }
@@ -118,21 +295,30 @@ fun VideoPlayerScreen(onBack: () -> Unit) {
                 .padding(16.dp)
         )
 
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    this.player = player
-                    useController = true
-                }
-            },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-        )
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        this.player = player
+                        useController = true
+                    }
+                },
+                update = { view ->
+                    view.player = player
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         Text(
-            "MOVIXA PLAYER",
+            movie.title,
             color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(16.dp)
         )
     }
