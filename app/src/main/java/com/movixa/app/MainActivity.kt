@@ -1,6 +1,8 @@
+
 package com.movixa.app
 
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -9,7 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,16 +63,38 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MovixaApp() {
+    val context = LocalContext.current
+
+    val preferences = remember {
+        context.getSharedPreferences("movixa_settings", Context.MODE_PRIVATE)
+    }
+
+    val repositories = remember {
+        mutableStateListOf<String>().apply {
+            addAll(
+                preferences.getStringSet("repositories", emptySet())
+                    ?: emptySet()
+            )
+        }
+    }
+
     var selected by remember { mutableStateOf<Movie?>(null) }
     var playingMovie by remember { mutableStateOf<Movie?>(null) }
     var query by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("All") }
+    var showExtensions by remember { mutableStateOf(false) }
 
     val categories = listOf("All", "Adventure", "Thriller", "Sci-Fi", "Drama")
 
     val visible = demoMovies.filter {
         (category == "All" || it.genre == category) &&
         it.title.contains(query, ignoreCase = true)
+    }
+
+    fun saveRepositories() {
+        preferences.edit()
+            .putStringSet("repositories", repositories.toSet())
+            .apply()
     }
 
     MaterialTheme(
@@ -100,6 +126,27 @@ fun MovixaApp() {
                     )
                 }
 
+                showExtensions -> {
+                    ExtensionsScreen(
+                        repositories = repositories,
+                        onBack = { showExtensions = false },
+                        onAdd = { url ->
+                            if (
+                                (url.startsWith("https://") ||
+                                 url.startsWith("http://")) &&
+                                !repositories.contains(url)
+                            ) {
+                                repositories.add(url)
+                                saveRepositories()
+                            }
+                        },
+                        onRemove = { url ->
+                            repositories.remove(url)
+                            saveRepositories()
+                        }
+                    )
+                }
+
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize()
@@ -114,17 +161,30 @@ fun MovixaApp() {
                                 fontSize = 32.sp,
                                 fontWeight = FontWeight.Black
                             )
+
                             Text(
                                 "YOUR CINEMA. YOUR WORLD.",
                                 color = Color.LightGray,
                                 fontSize = 11.sp
                             )
-                            Spacer(Modifier.height(20.dp))
+
+                            Spacer(Modifier.height(16.dp))
+
+                            OutlinedButton(
+                                onClick = { showExtensions = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("🧩  EXTENSIONS & REPOSITORIES")
+                            }
+
+                            Spacer(Modifier.height(8.dp))
+
                             Text(
                                 "Discover",
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Bold
                             )
+
                             Text(
                                 "Find your next movie night.",
                                 color = Color.LightGray
@@ -172,6 +232,130 @@ fun MovixaApp() {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ExtensionsScreen(
+    repositories: List<String>,
+    onBack: () -> Unit,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    var url by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            "← KEMBALI",
+            color = Aqua,
+            modifier = Modifier.clickable { onBack() }
+        )
+
+        Text(
+            "EXTENSIONS",
+            color = Aqua,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Black
+        )
+
+        Text(
+            "Manage your content repositories",
+            color = Color.LightGray
+        )
+
+        HorizontalDivider(color = Color.DarkGray)
+
+        Text(
+            "ADD REPOSITORY",
+            fontWeight = FontWeight.Bold
+        )
+
+        OutlinedTextField(
+            value = url,
+            onValueChange = {
+                url = it
+                error = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("https://example.com/repository.json") },
+            label = { Text("Repository URL") },
+            singleLine = true
+        )
+
+        if (error.isNotEmpty()) {
+            Text(error, color = Color.Red, fontSize = 12.sp)
+        }
+
+        Button(
+            onClick = {
+                val cleanUrl = url.trim()
+
+                if (
+                    !cleanUrl.startsWith("https://") &&
+                    !cleanUrl.startsWith("http://")
+                ) {
+                    error = "Masukkan URL yang diawali http:// atau https://"
+                } else if (repositories.contains(cleanUrl)) {
+                    error = "Repository sudah ditambahkan."
+                } else {
+                    onAdd(cleanUrl)
+                    url = ""
+                    error = ""
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("+  ADD REPOSITORY")
+        }
+
+        HorizontalDivider(color = Color.DarkGray)
+
+        Text(
+            "MY REPOSITORIES (${repositories.size})",
+            fontWeight = FontWeight.Bold
+        )
+
+        if (repositories.isEmpty()) {
+            Text(
+                "Belum ada repository.",
+                color = Color.Gray
+            )
+        }
+
+        repositories.forEach { repository ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Panel, RoundedCornerShape(12.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    repository,
+                    color = Color.White,
+                    fontSize = 13.sp
+                )
+
+                TextButton(
+                    onClick = { onRemove(repository) }
+                ) {
+                    Text("HAPUS", color = Color(0xFFFF7777))
+                }
+            }
+        }
+
+        Text(
+            "Repository manager • Plugin loading coming later",
+            color = Color.Gray,
+            fontSize = 11.sp
+        )
     }
 }
 
