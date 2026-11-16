@@ -635,17 +635,17 @@ fun MovieCard(movie: Movie, onClick: () -> Unit) {
         PosterImage(
     url = movie.posterUrl,
     modifier = Modifier
-        .size(width = 76.dp, height = 100.dp)
-        .clip(RoundedCornerShape(10.dp))
+        .size(width = 110.dp, height = 150.dp)
+        .clip(RoundedCornerShape(14.dp))
 )
 
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(16.dp))
 
         Column {
             Text(
                 movie.title,
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
+                fontSize = 20.sp
             )
             Text(
                 "${movie.genre} • ${movie.year}",
