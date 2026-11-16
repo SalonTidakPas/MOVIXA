@@ -2,6 +2,11 @@
 package com.movixa.app
 
 import android.os.Bundle
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -45,7 +50,8 @@ data class Movie(
     val genre: String,
     val year: String,
     val description: String,
-    val videoUrl: String
+    val videoUrl: String,
+    val posterUrl: String = ""
 )
 
 data class ExtensionInfo(
@@ -111,9 +117,10 @@ private fun fetchRepositoryMovies(repository: String): List<Movie> {
                         Movie(
                             title = title,
                             genre = item.optString("genre", "Other"),
-                            year = item.optString("year", ""),
-                            description = item.optString("description", ""),
-                            videoUrl = videoUrl
+year = item.optString("year", ""),
+description = item.optString("description", ""),
+videoUrl = videoUrl,
+posterUrl = item.optString("posterUrl")
                         )
                     )
                 }
@@ -578,6 +585,44 @@ fun RepositoryCard(
 }
 
 @Composable
+fun PosterImage(url: String, modifier: Modifier = Modifier) {
+    val imageBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        initialValue = null,
+        key1 = url
+    ) {
+        value = if (url.isBlank()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    URL(url).openStream().use { stream ->
+                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+
+    if (imageBitmap != null) {
+        Image(
+            bitmap = imageBitmap!!,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+    } else {
+        Box(
+            modifier = modifier.background(
+                Color(0xFF24344D),
+                RoundedCornerShape(10.dp)
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("▶", color = Aqua, fontSize = 26.sp)
+        }
+    }
+}
+@Composable
 fun MovieCard(movie: Movie, onClick: () -> Unit) {
     Row(
         modifier = Modifier
@@ -587,14 +632,12 @@ fun MovieCard(movie: Movie, onClick: () -> Unit) {
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 76.dp, height = 100.dp)
-                .background(Color(0xFF24344D), RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("▶", color = Aqua, fontSize = 26.sp)
-        }
+        PosterImage(
+    url = movie.posterUrl,
+    modifier = Modifier
+        .size(width = 76.dp, height = 100.dp)
+        .clip(RoundedCornerShape(10.dp))
+)
 
         Spacer(Modifier.width(14.dp))
 
