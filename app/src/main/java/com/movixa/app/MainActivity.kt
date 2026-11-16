@@ -167,6 +167,27 @@ fun MovixaApp() {
     var category by remember { mutableStateOf("All") }
     var showExtensions by remember { mutableStateOf(false) }
 
+    
+val favoriteTitles = remember {
+    mutableStateListOf<String>().apply {
+        addAll(
+            preferences.getStringSet("favorites", emptySet())
+                ?: emptySet()
+        )
+    }
+}
+
+fun toggleFavorite(movie: Movie) {
+    if (favoriteTitles.contains(movie.title)) {
+        favoriteTitles.remove(movie.title)
+    } else {
+        favoriteTitles.add(movie.title)
+    }
+
+    preferences.edit()
+        .putStringSet("favorites", favoriteTitles.toSet())
+        .apply()
+}
     var extensionMovies by remember {
         mutableStateOf<List<Movie>>(emptyList())
     }
@@ -206,13 +227,17 @@ fun MovixaApp() {
         .distinctBy { it.title }
 
     val categories = (
-        listOf("All", "Adventure", "Thriller", "Sci-Fi", "Drama", "Demo") +
-            extensionMovies.map { it.genre }
-        ).distinct()
+    listOf("All", "Favorites", "Adventure", "Thriller", "Sci-Fi", "Drama", "Demo") +
+        extensionMovies.map { it.genre }
+    ).distinct()
 
     val visible = allMovies.filter {
-        (category == "All" || it.genre == category) &&
-            it.title.contains(query, ignoreCase = true)
+    (
+        category == "All" ||
+        (category == "Favorites" && favoriteTitles.contains(it.title)) ||
+        it.genre == category
+    ) &&
+        it.title.contains(query, ignoreCase = true)
     }
 
     MaterialTheme(
@@ -340,9 +365,12 @@ fun MovixaApp() {
                         }
 
                         items(visible, key = { it.title }) { movie ->
-                            MovieCard(movie) {
-                                selected = movie
-                            }
+                            MovieCard(
+    movie = movie,
+    isFavorite = favoriteTitles.contains(movie.title),
+    onFavoriteClick = { toggleFavorite(movie) },
+    onClick = { selected = movie }
+)
                         }
 
                         item {
@@ -625,8 +653,14 @@ fun PosterImage(url: String, modifier: Modifier = Modifier) {
         }
     }
 }
+
 @Composable
-fun MovieCard(movie: Movie, onClick: () -> Unit) {
+fun MovieCard(
+    movie: Movie,
+    isFavorite: Boolean,
+    onFavoriteClick: () -> Unit,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -636,25 +670,48 @@ fun MovieCard(movie: Movie, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         PosterImage(
-    url = movie.posterUrl,
-    modifier = Modifier
-        .size(width = 110.dp, height = 150.dp)
-        .clip(RoundedCornerShape(14.dp))
-)
+            url = movie.posterUrl,
+            modifier = Modifier
+                .size(width = 110.dp, height = 150.dp)
+                .clip(RoundedCornerShape(14.dp))
+        )
 
         Spacer(Modifier.width(16.dp))
 
-        Column {
-            Text(
-                movie.title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    movie.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    modifier = Modifier.weight(1f)
+                )
+
+                IconButton(
+                    onClick = onFavoriteClick
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) {
+                            Icons.Filled.Favorite
+                        } else {
+                            Icons.Filled.FavoriteBorder
+                        },
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) Color.Red else Color.LightGray
+                    )
+                }
+            }
+
             Text(
                 "${movie.genre} • ${movie.year}",
                 color = Aqua,
                 fontSize = 12.sp
             )
+
             Text(
                 movie.description,
                 color = Color.LightGray,
