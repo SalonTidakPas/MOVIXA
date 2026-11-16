@@ -1,3 +1,4 @@
+
 package com.movixa.app
 
 import kotlinx.coroutines.Dispatchers
@@ -14,17 +15,36 @@ object SupabaseAuth {
     suspend fun signIn(
         email: String,
         password: String
+    ): JSONObject = request(
+        "/auth/v1/token?grant_type=password",
+        email,
+        password
+    )
+
+    suspend fun signUp(
+        email: String,
+        password: String
+    ): JSONObject = request(
+        "/auth/v1/signup",
+        email,
+        password
+    )
+
+    private suspend fun request(
+        path: String,
+        email: String,
+        password: String
     ): JSONObject = withContext(Dispatchers.IO) {
 
-        val url = URL(
-            "$PROJECT_URL/auth/v1/token?grant_type=password"
-        )
-
-        val connection = url.openConnection() as HttpURLConnection
+        val connection = URL("$PROJECT_URL$path")
+            .openConnection() as HttpURLConnection
 
         try {
             connection.requestMethod = "POST"
             connection.doOutput = true
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+
             connection.setRequestProperty(
                 "apikey", PUBLISHABLE_KEY
             )
@@ -54,12 +74,13 @@ object SupabaseAuth {
             }
 
             if (responseCode !in 200..299) {
+                val json = JSONObject(response)
                 throw Exception(
-                    JSONObject(response).optString(
+                    json.optString(
                         "msg",
-                        JSONObject(response).optString(
+                        json.optString(
                             "message",
-                            "Login gagal"
+                            json.optString("error_description", "Permintaan gagal")
                         )
                     )
                 )
